@@ -3,33 +3,36 @@
 % Input: w: World state (I x 1)
 %        x: Training data (I x D)
 %        N: number of class
-%        precision: the algorithm stops when the difference between
-%                      the previous and the new likelihood is < precision.
 %        ita: learning rate of gradient decent method
 %        
 % Output: parameters phi (N X D)
 %==========================================================================%
-function [phi] = multiLogistic(w, x, N, ita, precision)
+function [phi] = multiLogistic(w, x, N, ita)
     
+    I = size(x, 1);
     D = size(x, 2);
     
     % initialize parameters phi with random var
-    phi = ones(N, D);
+    phi = 0.005*ones(N, D);
     pre_L = 0;
     
-    count = 1;
-    scale = 1;
+    count = 0;
+    
+    % set up world state matrix W
+    W = zeros(N, I);
+    for i = 1:I
+        W(w(i), i) = 1;
+    end
     
     while true
        
-       [L, g] = optMultiLogistic(w, x, phi);
+       [L, g] = optMultiLogistic(W, x, phi);
        
        phi = phi - ita*g;
        
-       if abs(pre_L - L) < precision
+
+       if count >= 1000
            break;
-       else
-           pre_L = L;
        end
        display(L);
        

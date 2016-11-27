@@ -9,14 +9,20 @@
 %        
 % Output: parameters phi (N X D)
 %==========================================================================%
-function [phi] = multiLogisticBFGS(w, x, N, ita, precision)
+function [phi, e, t_e] = multiLogisticBFGS(w, x, N, ita, test_w, test_x)
     
+    I = size(x, 1);
     D = size(x, 2);
     
     % initialize parameters phi with random var
-    phi = ones(N, D);
-    
+    phi = 0.005*ones(N, D);
     count = 1;
+    
+    % set up world state matrix W
+    W = zeros(N, I);
+    for i = 1:I
+        W(w(i), i) = 1;
+    end
     
     Mat_D = zeros(D, D, N);
     
@@ -26,37 +32,73 @@ function [phi] = multiLogisticBFGS(w, x, N, ita, precision)
     
     d = zeros(N, D);
     
-    [L, g] = optMultiLogistic(w, x, phi);
+    [L, g] = optMultiLogistic(W, x, phi);
     
     pre_L = L;
     pre_g = g;
     
+    searchCount = 4;
+    
+    
+    itas = zeros(searchCount, 1);
+    for i = 1:searchCount
+        itas(i) = i*ita/searchCount;
+    end
+    
+    itas_t = itas;
+    
+    times = 500;
+    e = zeros(times, 1);
+    t_e = zeros(times, 1);
+    
+    
     while true
+       
+       L_min = Inf;
+       for i = 1:searchCount
+           
+           for n = 1:N
+               d(n, :) = -itas_t(i)*squeeze(Mat_D(:,:,n))*g(n, :)';
+           end
 
-       for n = 1:N
-           d(n, :) = -ita*squeeze(Mat_D(:,:,n))*g(n, :)';
+           phi_t = phi + d;
+
+           [L, g] = optMultiLogistic(W, x, phi_t);
+           
+           if L <= L_min
+               L_min = L;
+               g_min = g;
+               phi_min = phi_t;
+           end
+           
        end
        
-       phi = phi + d;
+       L = L_min;
+       g = g_min;
+       phi = phi_min;
        
-       [L, g] = optMultiLogistic(w, x, phi);
-       
-       if abs(pre_L - L) < precision
+       e(count) = testMulticlassLogistic(test_x, test_w, phi);
+       t_e(count) = testMulticlassLogistic(x, w - 1, phi);
+
+       if L > pre_L || count >= 500
            break;
-       else
-           pre_L = L;
        end
        display(L);
 
        
        y = g - pre_g;
-       pre_g = g;
+       pre_g = g;   
+       pre_L = L;
        
        for n = 1:N
            Mat_D(:,:,n) = (eye(D, D) - (d(n, :)'*y(n, :))./(d(n, :)*y(n, :)'))...
                             *squeeze(Mat_D(:,:,n))...
                             *(eye(D, D) - (y(n, :)'*d(n, :))./(y(n, :)*d(n, :)'))...
                             + (d(n, :)'*d(n, :))./(d(n, :)*y(n, :)');
+       end
+       
+       if L < 1
+           itas_t = itas .* L;
        end
        
        count = count + 1;
